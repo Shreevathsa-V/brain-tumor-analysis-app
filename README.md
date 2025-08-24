@@ -30,25 +30,25 @@ This is a full-stack web application designed for the classification and segment
 ---
 
 ## Project Structure
--    /brain-tumor-analyzer
-    |-- /backend
-    |   |-- /data
-    |   |   |-- /Training
-    |   |   |-- /Testing
-    |   |-- /frontend
-    |   |   |-- /src
-    |   |   |   |-- App.js
-    |   |   |   |-- App.css
-    |   |   |   |-- index.js
-    |   |   |-- package.json
-    |   |   |-- .gitignore
-    |   |-- app.py
-    |   |-- train.py
-    |   |-- requirements.txt
-    |   |-- brain_tumor_model.h5
-    |   |-- .gitignore
-    |
-    |-- README.md
+/brain-tumor-analyzer
+|-- /backend
+|   |-- /data
+|   |   |-- /Training
+|   |   |-- /Testing
+|   |-- /frontend
+|   |   |-- /src
+|   |   |   |-- App.js
+|   |   |   |-- App.css
+|   |   |   |-- index.js
+|   |   |-- package.json
+|   |   |-- .gitignore
+|   |-- app.py
+|   |-- train.py
+|   |-- requirements.txt
+|   |-- brain_tumor_model.h5
+|   |-- .gitignore
+|
+|-- README.md
 
 ---
 
