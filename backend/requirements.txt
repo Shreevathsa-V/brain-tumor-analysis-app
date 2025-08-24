@@ -1,0 +1,8 @@
+flask
+flask-cors
+tensorflow-macos
+tensorflow-metal
+Pillow
+numpy
+gunicorn
+
