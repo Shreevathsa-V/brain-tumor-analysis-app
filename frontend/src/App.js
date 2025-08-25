@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 
 // --- Configuration ---
-const BACKEND_URL = 'https://brain-tumour-api.onrender.com';
+const BACKEND_URL = 'https://brain-tumour-api.onrender.com/predict_batch';
 
 // --- Helper Components ---
 
