@@ -1,8 +1,7 @@
 flask
 flask-cors
-tensorflow-macos
-tensorflow-metal
+tensorflow
 Pillow
 numpy
 gunicorn
-request
+requests
