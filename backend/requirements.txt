@@ -5,4 +5,4 @@ tensorflow-metal
 Pillow
 numpy
 gunicorn
-
+request

@@ -8,18 +8,17 @@ from flask_cors import CORS
 import tensorflow as tf
 from PIL import Image
 import numpy as np
+import requests # Required to download the model
 
 # --- App Configuration ---
-# Configure logging to file and console
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s',
                     handlers=[logging.FileHandler("app.log"), logging.StreamHandler()])
 
 # --- Model Definition (TensorFlow/Keras U-Net) ---
-# This function defines the robust U-Net architecture.
 def build_unet_model(input_shape, n_classes):
     inputs = tf.keras.layers.Input(input_shape)
-
+    # ... (rest of the model definition is the same as before)
     # Encoder Path
     c1 = tf.keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer='he_normal', padding='same')(inputs)
     c1 = tf.keras.layers.Dropout(0.1)(c1)
@@ -55,99 +54,109 @@ def build_unet_model(input_shape, n_classes):
 
     segmentation_output = tf.keras.layers.Conv2D(1, (1, 1), activation='sigmoid', name='segmentation_output')(c7)
 
-    # The model has two outputs
     model = tf.keras.Model(inputs=[inputs], outputs=[segmentation_output, classification_output])
-    
     return model
 
 # --- Globals and Constants ---
 app = Flask(__name__)
 CORS(app)
 MODEL_FILENAME = "brain_tumor_model.h5"
-# UPDATED: Added 'No Tumor' and changed N_CLASSES to 4
 CLASS_NAMES = ['Glioma', 'Meningioma', 'No Tumor', 'Pituitary Tumor']
 IMAGE_SIZE = (256, 256)
 N_CLASSES = 4
+MODEL_LOADED = False
 
 # --- Model Loading ---
-try:
-    # Build the model structure first
-    model = build_unet_model((*IMAGE_SIZE, 3), N_CLASSES)
-    # Then load the trained weights
-    model.load_weights(MODEL_FILENAME)
-    logging.info(f"Model '{MODEL_FILENAME}' loaded successfully.")
-    MODEL_LOADED = True
-except FileNotFoundError:
-    logging.error(f"FATAL: Model file not found at '{MODEL_FILENAME}'. The API cannot function.")
-    MODEL_LOADED = False
-except Exception as e:
-    logging.error(f"FATAL: An error occurred while loading the model: {e}")
-    MODEL_LOADED = False
+# NEW: Function to download the model file
+def download_model():
+    model_url = os.environ.get('MODEL_URL') # Get URL from environment variable
+    if not model_url:
+        logging.error("FATAL: MODEL_URL environment variable not set.")
+        return None
+    
+    logging.info(f"Downloading model from {model_url}...")
+    try:
+        r = requests.get(model_url, allow_redirects=True)
+        r.raise_for_status()
+        with open(MODEL_FILENAME, 'wb') as f:
+            f.write(r.content)
+        logging.info("Model downloaded successfully.")
+        return MODEL_FILENAME
+    except Exception as e:
+        logging.error(f"FATAL: Failed to download model: {e}")
+        return None
 
-# --- Helper Functions ---
+# Build the model structure
+model = build_unet_model((*IMAGE_SIZE, 3), N_CLASSES)
+
+# Download and then load the weights
+model_path = download_model()
+if model_path and os.path.exists(model_path):
+    try:
+        model.load_weights(model_path)
+        logging.info(f"Model '{MODEL_FILENAME}' loaded successfully.")
+        MODEL_LOADED = True
+    except Exception as e:
+        logging.error(f"FATAL: An error occurred while loading the model weights: {e}")
+else:
+    logging.error("Model file not available. The API cannot function.")
+
+
+# --- Helper Functions (same as before) ---
 def process_image(image_bytes):
+    # ... (same as before)
     try:
         image = Image.open(io.BytesIO(image_bytes)).convert('RGB').resize(IMAGE_SIZE)
-        image_array = np.array(image) / 255.0 # Normalize to [0, 1]
+        image_array = np.array(image) / 255.0
         return np.expand_dims(image_array, axis=0), image_bytes
     except Exception as e:
         logging.warning(f"Could not process image bytes: {e}")
         return None, None
 
 def apply_mask_and_encode(original_bytes, mask_array, predicted_class):
+    # ... (same as before)
     original_pil = Image.open(io.BytesIO(original_bytes)).convert('RGBA').resize(IMAGE_SIZE)
-    
-    # Only apply mask if a tumor is detected
     if predicted_class != 'No Tumor':
         mask = np.squeeze(mask_array)
-        mask = (mask > 0.5).astype('uint8') * 255 # Binarize the mask
+        mask = (mask > 0.5).astype('uint8') * 255
         mask_pil = Image.fromarray(mask, mode='L')
-        
         red_overlay = Image.new('RGBA', original_pil.size, (255, 0, 0, 0))
         red_overlay.paste((255, 0, 0, 128), mask=mask_pil)
         combined = Image.alpha_composite(original_pil, red_overlay)
     else:
         combined = original_pil
-
     buffered = io.BytesIO()
     combined.save(buffered, format="PNG")
     return f"data:image/png;base64,{base64.b64encode(buffered.getvalue()).decode('utf-8')}"
 
 def encode_image(image_bytes):
+    # ... (same as before)
     return f"data:image/jpeg;base64,{base64.b64encode(image_bytes).decode('utf-8')}"
 
-# --- API Endpoints ---
+# --- API Endpoints (same as before) ---
 @app.route('/predict_batch', methods=['POST'])
 def predict_batch():
+    # ... (same as before)
     if not MODEL_LOADED:
         return jsonify({'error': 'Model is not loaded on the server.'}), 503
-
     files = request.files.getlist('files')
     if not files:
         return jsonify({'error': 'No files provided in the request.'}), 400
-
     results = []
     for file in files:
         try:
             filename = file.filename
             image_bytes = file.read()
             image_tensor, original_bytes = process_image(image_bytes)
-
             if image_tensor is None:
                 results.append({'filename': filename, 'error': 'Invalid image format'})
                 continue
-
-            # Get model prediction (returns a list of outputs)
             segmentation_output, classification_output = model.predict(image_tensor)
-            
-            # Process classification output
             predicted_idx = np.argmax(classification_output[0])
             confidence_score = float(classification_output[0][predicted_idx])
             predicted_class = CLASS_NAMES[predicted_idx]
-
             segmented_image_b64 = apply_mask_and_encode(original_bytes, segmentation_output, predicted_class)
             original_image_b64 = encode_image(original_bytes)
-
             results.append({
                 'filename': filename,
                 'tumor_type': predicted_class,
@@ -156,15 +165,14 @@ def predict_batch():
                 'segmented_image': segmented_image_b64
             })
             logging.info(f"Processed {filename}. Prediction: {predicted_class} ({confidence_score:.2f})")
-
         except Exception as e:
             logging.error(f"Error processing file {file.filename}: {e}")
             results.append({'filename': file.filename, 'error': 'Failed to process file on server.'})
-
     return jsonify({'results': results})
 
 @app.route('/health', methods=['GET'])
 def health_check():
+    # ... (same as before)
     return jsonify({
         "status": "ok" if MODEL_LOADED else "error",
         "model_loaded": MODEL_LOADED,
@@ -173,4 +181,5 @@ def health_check():
 
 # --- Main Execution ---
 if __name__ == '__main__':
+    # This part is for local development, not for deployment
     app.run(host='0.0.0.0', port=8080, debug=False)
