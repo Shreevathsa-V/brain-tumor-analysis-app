@@ -5,7 +5,6 @@ import logging
 from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-# CORRECTED: Import the full tensorflow library
 import tensorflow as tf
 from PIL import Image, ImageDraw
 import numpy as np
@@ -48,7 +47,6 @@ interpreter = None
 
 if model_path and os.path.exists(model_path):
     try:
-        # CORRECTED: Use tf.lite.Interpreter from the main tensorflow package
         interpreter = tf.lite.Interpreter(model_path=model_path)
         interpreter.allocate_tensors()
         logging.info(f"TFLite model '{MODEL_FILENAME}' loaded successfully.")
@@ -141,7 +139,13 @@ def predict_batch():
 
 @app.route('/health', methods=['GET'])
 def health_check():
+    # CORRECTED: Added the missing closing brace and parenthesis
     return jsonify({
         "status": "ok" if MODEL_LOADED else "error",
         "model_loaded": MODEL_LOADED,
-        "timestamp": datetime.utc
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
+# --- Main Execution ---
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080, debug=False)
