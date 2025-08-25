@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 
 // --- Configuration ---
-const BACKEND_URL = 'http://127.0.0.1:8080/predict_batch';
+const BACKEND_URL = 'https://brain-tumour-api.onrender.com';
 
 // --- Helper Components ---
 
