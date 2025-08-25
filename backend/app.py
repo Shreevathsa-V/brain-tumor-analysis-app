@@ -5,7 +5,8 @@ import logging
 from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import tflite_runtime.interpreter as tflite
+# CORRECTED: Import the full tensorflow library
+import tensorflow as tf
 from PIL import Image, ImageDraw
 import numpy as np
 import requests
@@ -47,7 +48,8 @@ interpreter = None
 
 if model_path and os.path.exists(model_path):
     try:
-        interpreter = tflite.Interpreter(model_path=model_path)
+        # CORRECTED: Use tf.lite.Interpreter from the main tensorflow package
+        interpreter = tf.lite.Interpreter(model_path=model_path)
         interpreter.allocate_tensors()
         logging.info(f"TFLite model '{MODEL_FILENAME}' loaded successfully.")
         MODEL_LOADED = True
@@ -69,18 +71,14 @@ def process_image(image_bytes):
 def create_segmentation_and_encode(original_bytes, predicted_class):
     original_pil = Image.open(io.BytesIO(original_bytes)).convert('RGBA').resize(IMAGE_SIZE)
     
-    # Only draw a highlight if a tumor is detected
     if predicted_class != 'No Tumor':
-        # Create a dummy highlight since the model no longer provides a mask
         draw = ImageDraw.Draw(original_pil)
-        # Define a bounding box for the highlight (e.g., center of the image)
         width, height = original_pil.size
         box_size = min(width, height) // 2
         left = (width - box_size) / 2
         top = (height - box_size) / 2
         right = left + box_size
         bottom = top + box_size
-        # Draw a semi-transparent red ellipse
         draw.ellipse([left, top, right, bottom], fill=(255, 0, 0, 80), outline=(255, 0, 0, 120), width=3)
 
     buffered = io.BytesIO()
@@ -117,7 +115,6 @@ def predict_batch():
             interpreter.set_tensor(input_details[0]['index'], image_tensor)
             interpreter.invoke()
             
-            # The model now only has one output
             classification_output = interpreter.get_tensor(output_details[0]['index'])
             
             predicted_idx = np.argmax(classification_output[0])
@@ -147,9 +144,4 @@ def health_check():
     return jsonify({
         "status": "ok" if MODEL_LOADED else "error",
         "model_loaded": MODEL_LOADED,
-        "timestamp": datetime.utcnow().isoformat()
-    })
-
-# --- Main Execution ---
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=False)
+        "timestamp": datetime.utc
